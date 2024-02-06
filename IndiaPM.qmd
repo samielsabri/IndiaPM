@@ -4,6 +4,7 @@ author: "Sami El Sabri"
 format: pdf
 editor: visual
 date: 02-05-2024
+thanks: "Code and data are available at: https://github.com/samielsabri/IndiaPM"
 date-format: long
 number-sections: true
 bibliography: referencesPMIndia.bib
