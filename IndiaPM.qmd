@@ -1,0 +1,162 @@
+---
+title: "India Prime Ministers"
+author: "Sami El Sabri"
+format: pdf
+editor: visual
+date: 02-05-2024
+date-format: long
+number-sections: true
+bibliography: referencesPMIndia.bib
+---
+
+```{r, include=FALSE, echo=FALSE}
+library(tidyverse)
+library(rvest)
+library(xml2)
+library(babynames)
+library(janitor)
+library(kableExtra)
+
+```
+
+# Simulate Data {#sec-simulate}
+
+The goal is obtain a dataset of all Prime Ministers of India to compare their
+
+In this short paper, the objective is to analyze the lifespans of Indian prime ministers, based on their birth years. My approach involves scraping data from Wikipedia using the rvest package in the open-source statistical programming language R [@citeR], performing data preprocessing, and finally creating a visual representation through graph plotting. Since web scraping is always dependent on how the website is structured, which can change over time, it is important to have a clear idea of the end goal. That is why, to begin, I generated simulated data resembling the structure expected from the Wikipedia scrape. Each entry in our simulated dataset corresponds to a prime minister and it includes fields for their name, birth year, and if they are not currently still alive, their death year. Since India is a fairly new democracy, established in 1948, I expect the birth years to fall within the range of 1900 and 1990, and the death year having to be larger than the birth year. We want the dataset to look as follows:
+
+```{r, echo=FALSE, include=FALSE}
+set.seed(853)
+
+simulated_dataset <-
+  tibble(
+    prime_minister = babynames |>
+      filter(prop > 0.01) |>
+      distinct(name) |>
+      unlist() |>
+      sample(size = 10, replace = FALSE),
+    birth_year = sample(1900:1990, size = 10, replace = TRUE),
+    years_lived = sample(50:85, size = 10, replace = TRUE),
+    death_year = birth_year + years_lived
+  ) |>
+  select(prime_minister, birth_year, death_year, years_lived) |>
+  arrange(birth_year)
+
+kable(simulated_dataset)
+```
+
+# Download Data {#sec-download}
+
+As described above, gathering the data means scraping it from a webpage. I chose Wikipedia, since it tends to be rather accurate for factual topics such as Birth and Death years. The article is titled 'List of prime ministers of India' [@citewikipedia]. The scraping is done using the `read_html` and `write_html` from the `rvest` [@citervest] package, and the code can be reviewed in the appendix (@sec-appendix) for reference.
+
+```{r, message=FALSE, include=FALSE, echo=FALSE}
+raw_data <-
+  read_html(
+    "https://en.wikipedia.org/wiki/List_of_prime_ministers_of_India"
+  )
+write_html(raw_data, "pms.html")
+```
+
+# Clean Data {#sec-clean}
+
+The data cleaning process involved several step, which were done using the R packages `tidyverse` @citetidyverse and `kableExtra` @citekable: First, we select the relevant html elements from the scraped raw data, which in this case would be the table of prime ministers. Next, only the relevant rows are selected, which would be `Name(born – died)Constituency` as it includes all the information that we need: Name, Birth year and Death year. However, the information needs to be parsed properly, which took longer than expected due to the difficulty of applying regular expressions. Almost all observations are formatted as the example "First Name(1889–1964) MP for United Province \[...\]". Therefore, we need to extract everything before the first bracket, the first number after the first bracket and the second number after the first bracket. However, for prime ministers who are still alive, the information is structured like "Narendra Modi(born 1950)". Coming up with regex statements or conditional statements that would correctly parse this text into three distinct pieces of information proved to be surprisingly difficult. 
+
+Given these challenges, I adopted a pragmatic approach, splitting the dataset into two categories: one for deceased prime ministers and another for those still alive. Subsequently, I applied distinct regex statements to each dataset, with the intention of reuniting them subsequently. For prime ministers still alive, the death year was artificially set to 2024 for visualization purposes, while ensuring the the `Alive` variable is still set to `TRUE` to avoid any potential conclusion. this should not cause any further confusion. The resulting cleaned dataset (@tbl-cleaneddata) closely resembled our earlier simulated table.
+
+```{r, include=FALSE}
+raw_data <- read_html('pms.html')
+parse_data_selector_gadget <-
+  raw_data |>
+  html_element(".wikitable") |>
+  html_table()
+
+head(parse_data_selector_gadget)
+```
+
+```{r, include=FALSE}
+parsed_data <-
+  parse_data_selector_gadget %>% select(`Name(born – died)Constituency`) %>% unique() %>% rename('raw' = `Name(born – died)Constituency` )
+
+parsed_data <- parsed_data %>% mutate(Alive = ifelse(str_detect(raw, "born"), TRUE, FALSE))
+
+parsed_data$raw <- sub("\\).*", ")", parsed_data$raw)
+
+
+
+dead <- parsed_data %>% filter(!Alive) %>% 
+  mutate("Name" = sub("\\(.*", "", raw)) %>% 
+  mutate(Birth_Year =  sub(".*\\((\\d+).*", "\\1", raw),
+      Death_Year = sub(".*–(\\d+).*", "\\1", raw),
+      Age = as.integer(Death_Year) - as.integer(Birth_Year))
+
+
+alive <- parsed_data %>% filter(Alive)
+alive <- alive %>%
+  mutate(Name = sub("\\(.*", "", raw), 
+         Birth_Year = str_extract(raw, "born (\\d+)"),
+         Death_Year = 2024) 
+
+# Extract only the digits from birth year
+alive$Birth_Year <- str_extract(alive$Birth_Year, "\\d+")
+alive <- alive %>% mutate(Age = 2024-as.integer(Birth_Year))
+
+cleaned_data <- rbind(alive, dead)
+cleaned_data <- select(cleaned_data, -raw)
+cleaned_data$Birth_Year <- as.integer(cleaned_data$Birth_Year)
+cleaned_data$Death_Year <- as.integer(cleaned_data$Death_Year)
+
+
+```
+
+```{r}
+#| label: tbl-cleaneddata
+#| tbl-cap: "Cleaned Data of Indian Prime Ministers since 1948"
+#| echo: false
+#| message: false
+#| warning: false
+kable(cleaned_data)
+```
+
+```{r}
+#| label: tbl-summary
+#| tbl-cap: "Summary Statistics of Ages of Indian Prime Ministers since 1948"
+#| echo: false
+#| message: false
+#| warning: false
+summarytable <- cleaned_data %>% select(Age) %>% summarize(mean = round(mean(Age),2), median = median(Age), sd = round(sd(Age),2))
+kable(summarytable)
+```
+
+# Interpret and Visualize Data {#sec-visualize}
+
+The data analysis process became most enjoyable once the data was satisfactorily cleaned and could finally be analyzed appropriately. The results revealed intriguing insights into the lifespans of Indian prime ministers. There are definitely variations in lifespan, however they seem to be non-systematic, i.e. there is not a difference between recent and non-recent prime ministers. This is most likely due to the fact that all Prime Ministers assumed office after 1948. Interestingly, 6 out of the 16 prime ministers (38%) aged 90 or older, which is not common in a country with a life expectancy of 70 years. The median and mean ages amongst these prime ministers were 81.5 and 80.375, respectively (@tbl-summary). It would be an interesting point of further inferential analysis how extreme these results are, i.e. how much different the sample of prime ministers is compared to a national sample. The most enjoyable part, then, was the data visualization. The clean dataset allowed for clean visualization. The only complication was the need to make the x-axis continuous and change the scale of years, but after some tinkering, I could achieve a satisfactory result. @fig-lifespan shows the different lifespans of all Indian Prime Ministers.
+
+```{r, echo=FALSE, message=FALSE}
+graph <- cleaned_data %>% 
+  ggplot(aes(x = Birth_Year, xend = Death_Year, y = Name, yend = Name, color = Alive)) +
+  geom_segment() +
+  labs(x = "Year of birth", y = "Prime minister", color = "PM is currently alive") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1") +
+  theme(legend.position = "bottom") +
+  scale_x_continuous(limits = c(1875, 2024), breaks = seq(1875, 2024, 25)) 
+```
+
+```{r}
+#| label: fig-lifespan
+#| fig-cap: "Visualization of the Lifespan of Indian Prime Ministers since 1948"
+#| echo: false
+#| message: false
+#| warning: false
+graph
+```
+
+# Appendix {#sec-appendix}
+```{r}
+raw_data <-
+  read_html(
+    "https://en.wikipedia.org/wiki/List_of_prime_ministers_of_India"
+  )
+write_html(raw_data, "pms.html")
+```
+# References
