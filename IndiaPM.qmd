@@ -59,7 +59,7 @@ write_html(raw_data, "pms.html")
 
 # Clean Data {#sec-clean}
 
-The data cleaning process involved several step, which were done using the R packages `tidyverse` @citetidyverse and `kableExtra` @citekable: First, we select the relevant html elements from the scraped raw data, which in this case would be the table of prime ministers. Next, only the relevant rows are selected, which would be `Name(born – died)Constituency` as it includes all the information that we need: Name, Birth year and Death year. However, the information needs to be parsed properly, which took longer than expected due to the difficulty of applying regular expressions. Almost all observations are formatted as the example "First Name(1889–1964) MP for United Province \[...\]". Therefore, we need to extract everything before the first bracket, the first number after the first bracket and the second number after the first bracket. However, for prime ministers who are still alive, the information is structured like "Narendra Modi(born 1950)". Coming up with regex statements or conditional statements that would correctly parse this text into three distinct pieces of information proved to be surprisingly difficult. 
+The data cleaning process involved several step, which were done using the R packages `tidyverse` @citetidyverse and `kableExtra` @citekable: First, we select the relevant html elements from the scraped raw data, which in this case would be the table of prime ministers. Next, only the relevant rows are selected, which would be `Name(born – died)Constituency` as it includes all the information that we need: Name, Birth year and Death year. However, the information needs to be parsed properly, which took longer than expected due to the difficulty of applying regular expressions. Almost all observations are formatted as the example "First Name(1889–1964) MP for United Province \[...\]". Therefore, we need to extract everything before the first bracket, the first number after the first bracket and the second number after the first bracket. However, for prime ministers who are still alive, the information is structured like "Narendra Modi(born 1950)". Coming up with regex statements or conditional statements that would correctly parse this text into three distinct pieces of information proved to be surprisingly difficult.
 
 Given these challenges, I adopted a pragmatic approach, splitting the dataset into two categories: one for deceased prime ministers and another for those still alive. Subsequently, I applied distinct regex statements to each dataset, with the intention of reuniting them subsequently. For prime ministers still alive, the death year was artificially set to 2024 for visualization purposes, while ensuring the the `Alive` variable is still set to `TRUE` to avoid any potential conclusion. this should not cause any further confusion. The resulting cleaned dataset (@tbl-cleaneddata) closely resembled our earlier simulated table.
 
@@ -152,6 +152,7 @@ graph
 ```
 
 # Appendix {#sec-appendix}
+
 ```{r}
 raw_data <-
   read_html(
@@ -159,4 +160,5 @@ raw_data <-
   )
 write_html(raw_data, "pms.html")
 ```
+
 # References
